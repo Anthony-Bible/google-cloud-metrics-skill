@@ -340,6 +340,28 @@ def output_csv(all_series: list, latest_only: bool) -> None:
     print(output.getvalue(), end="")
 
 
+def format_value(val: float | int | str) -> str:
+    """Format a value for human-readable display."""
+    if isinstance(val, str):
+        return val
+    if val == 0:
+        return "0"
+
+    abs_val = abs(val)
+
+    # For very small values, use fixed decimal that shows significant digits
+    if abs_val < 0.0001:
+        return f"{val:.8f}".rstrip('0').rstrip('.')
+    elif abs_val < 0.01:
+        return f"{val:.6f}".rstrip('0').rstrip('.')
+    elif abs_val < 1:
+        return f"{val:.4f}".rstrip('0').rstrip('.')
+    elif abs_val < 1000:
+        return f"{val:.2f}".rstrip('0').rstrip('.')
+    else:
+        return f"{val:,.0f}"
+
+
 def output_table(all_series: list, show_stats: bool, latest_only: bool) -> None:
     """Output results as formatted table."""
     if not all_series:
@@ -348,11 +370,11 @@ def output_table(all_series: list, show_stats: bool, latest_only: bool) -> None:
 
     if latest_only or show_stats:
         # Summary view
-        print(f"\n{'Series':<60} {'Latest':>12} {'Max':>12} {'Avg':>12}", end="")
+        print(f"\n{'Series':<60} {'Latest':>14} {'Max':>14} {'Avg':>14}", end="")
         if show_stats:
-            print(f" {'P95':>12} {'P99':>12}", end="")
+            print(f" {'P95':>14} {'P99':>14}", end="")
         print()
-        print("-" * (60 + 12 * 3 + (24 if show_stats else 0)))
+        print("-" * (60 + 14 * 3 + (28 if show_stats else 0)))
 
         for series in all_series:
             label = series["label_str"][:58]
@@ -360,11 +382,11 @@ def output_table(all_series: list, show_stats: bool, latest_only: bool) -> None:
             max_val = series.get("max", 0)
             avg_val = series.get("avg", 0)
 
-            print(f"{label:<60} {latest:>12.6g} {max_val:>12.6g} {avg_val:>12.6g}", end="")
+            print(f"{label:<60} {format_value(latest):>14} {format_value(max_val):>14} {format_value(avg_val):>14}", end="")
 
             if show_stats and "stats" in series:
                 stats = series["stats"]
-                print(f" {stats['p95']:>12.6g} {stats['p99']:>12.6g}", end="")
+                print(f" {format_value(stats['p95']):>14} {format_value(stats['p99']):>14}", end="")
             print()
     else:
         # Full data points view
@@ -373,7 +395,7 @@ def output_table(all_series: list, show_stats: bool, latest_only: bool) -> None:
             print(f"  {series['label_str']}")
             print("  Data Points:")
             for point in series["points"][:20]:  # Limit to 20 points
-                print(f"    {point['timestamp']}: {point['value']}")
+                print(f"    {point['timestamp']}: {format_value(point['value'])}")
             if len(series["points"]) > 20:
                 print(f"    ... ({len(series['points']) - 20} more points)")
 
