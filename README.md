@@ -79,13 +79,11 @@ Query GCP Monitoring API using the bundled cloud_metrics.py script.
 ## Prerequisites
 
 Requires GCP authentication:
-\`\`\`bash
+
 gcloud auth application-default login
-\`\`\`
 
 ## Commands
 
-\`\`\`bash
 # Run with uv (handles dependencies automatically)
 uv run scripts/cloud_metrics.py <command> [options]
 
@@ -93,7 +91,6 @@ uv run scripts/cloud_metrics.py <command> [options]
 query     # Query metric data
 describe  # Show metric labels and filter examples
 list      # List available metrics
-\`\`\`
 ```
 
 ## Usage
@@ -204,4 +201,4 @@ No manual `pip install` required when using `uv run`.
 
 ## License
 
-MIT
+APACHE 2.0 License. See LICENSE file for details.
