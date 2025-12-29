@@ -28,70 +28,40 @@ gcloud auth application-default login
 
 ## Installation
 
+This skill is distributed as a self-contained directory. Install it so Claude Code can discover and use it:
+
 ### Option 1: Project-Level Installation
 
-Install the skill for a specific project:
+Install for a specific project:
 
 ```bash
 # From your project root
-cp -r /path/to/cloud-metrics/.claude/skills/cloud-metrics .claude/skills/
+cp -r /path/to/cloud-metrics/cloud-metrics .claude/skills/
 ```
-
-Or manually create the structure:
-
-```bash
-mkdir -p .claude/skills/cloud-metrics/scripts
-cp /path/to/cloud_metrics.py .claude/skills/cloud-metrics/scripts/
-```
-
-Then create `.claude/skills/cloud-metrics/SKILL.md` (see [SKILL.md template](#skillmd-template) below).
 
 ### Option 2: User-Level Installation (All Projects)
 
-Install the skill globally so it's available in all your projects:
+Install globally so it's available in all your projects:
 
 ```bash
-cp -r /path/to/cloud-metrics/.claude/skills/cloud-metrics ~/.claude/skills/
+# From any directory
+cp -r /path/to/cloud-metrics/cloud-metrics ~/.claude/skills/
 ```
 
-Or manually:
+### Option 3: Using the .skill File (if your agent supports it)
+
+Some agents can install skills directly from a `.skill` file:
 
 ```bash
-mkdir -p ~/.claude/skills/cloud-metrics/scripts
-cp /path/to/cloud_metrics.py ~/.claude/skills/cloud-metrics/scripts/
-# Then create SKILL.md as shown below
+# If your agent supports skill file installation
+/path/to/cloud-metrics.skill
 ```
 
-### SKILL.md Template
+The skill directory contains:
+- `scripts/cloud_metrics.py` - The Python script for querying metrics
+- `SKILL.md` - Skill metadata (used by Claude Code)
 
-Create this file at `.claude/skills/cloud-metrics/SKILL.md` or `~/.claude/skills/cloud-metrics/SKILL.md`:
-
-```markdown
----
-name: cloud-metrics
-description: Query Google Cloud Monitoring metrics using the cloud_metrics.py tool. Use when users ask about GCP metrics, Cloud Monitoring, Kubernetes metrics (CPU, memory, network), container resource usage, or need to export monitoring data. Triggers on requests like "show me CPU usage", "list available metrics", "describe this metric", "top memory consumers", or any Google Cloud Monitoring queries.
----
-
-# Cloud Metrics
-
-Query GCP Monitoring API using the bundled cloud_metrics.py script.
-
-## Prerequisites
-
-Requires GCP authentication:
-
-gcloud auth application-default login
-
-## Commands
-
-# Run with uv (handles dependencies automatically)
-uv run scripts/cloud_metrics.py <command> [options]
-
-# Commands
-query     # Query metric data
-describe  # Show metric labels and filter examples
-list      # List available metrics
-```
+That's it! No manual SKILL.md creation needed - it's already included.
 
 ## Usage
 
