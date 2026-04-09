@@ -1,5 +1,5 @@
 ---
-name: cloud-metrics
+name: google-cloud-metrics-skill
 description: Query Google Cloud Monitoring metrics using the cloud_metrics.py tool. Use when users ask about GCP metrics, Cloud Monitoring, Kubernetes metrics (CPU, memory, network), container resource usage, or need to export monitoring data. Triggers on requests like "show me CPU usage", "list available metrics", "describe this metric", "top memory consumers", or any Google Cloud Monitoring queries.
 ---
 
