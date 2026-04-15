@@ -128,7 +128,7 @@ def query_metrics(
     per_series_aligner: str = "ALIGN_RATE",
     reducer: Optional[str] = None,
     group_by: Optional[list[str]] = None,
-    output_format: str = "table",
+    output_format: str = "json",
     top_n: Optional[int] = None,
     show_stats: bool = False,
     latest_only: bool = False,
@@ -421,29 +421,24 @@ def describe_metric(project_id: str, metric_type: str) -> None:
     }
 
     try:
-        # Get metric descriptor
         descriptor = client.get_metric_descriptor(
             name=f"{project_name}/metricDescriptors/{metric_type}"
         )
 
-        print(f"Metric: {descriptor.type}")
-        print(f"Display Name: {descriptor.display_name}")
-        print(f"Description: {descriptor.description}")
-        print(f"Kind: {metric_kind_names.get(descriptor.metric_kind, str(descriptor.metric_kind))}")
-        print(f"Value Type: {value_type_names.get(descriptor.value_type, str(descriptor.value_type))}")
-        print(f"Unit: {descriptor.unit or 'none'}")
-
-        print("\nMetric Labels:")
-        if descriptor.labels:
-            for label in descriptor.labels:
-                print(f"  metric.labels.{label.key}")
-                if label.description:
-                    print(f"    {label.description}")
-        else:
-            print("  (none)")
+        result = {
+            "type": descriptor.type,
+            "display_name": descriptor.display_name,
+            "description": descriptor.description,
+            "kind": metric_kind_names.get(descriptor.metric_kind, str(descriptor.metric_kind)),
+            "value_type": value_type_names.get(descriptor.value_type, str(descriptor.value_type)),
+            "unit": descriptor.unit or None,
+            "metric_labels": [
+                {"key": f"metric.labels.{l.key}", "description": l.description}
+                for l in descriptor.labels
+            ] if descriptor.labels else [],
+        }
 
         # Get a sample time series to discover resource labels
-        print("\nResource Labels (from sample data):")
         now = datetime.now(timezone.utc)
         interval = monitoring_v3.TimeInterval(
             start_time=now - timedelta(minutes=5),
@@ -459,26 +454,25 @@ def describe_metric(project_id: str, metric_type: str) -> None:
             }
         )
 
-        resource_labels = set()
+        resource_labels: dict[str, set] = {}
         resource_type = None
-        sample_values = {}
 
         for series in results:
             resource_type = series.resource.type
             for key, value in series.resource.labels.items():
-                resource_labels.add(key)
-                if key not in sample_values:
-                    sample_values[key] = set()
-                sample_values[key].add(value)
-                if len(sample_values[key]) > 5:
-                    sample_values[key] = set(list(sample_values[key])[:5])
+                resource_labels.setdefault(key, set()).add(value)
+                if len(resource_labels[key]) > 5:
+                    resource_labels[key] = set(list(resource_labels[key])[:5])
 
-        # Discover system metadata labels by trying common ones
-        system_labels = set()
-        system_sample_values = {}
-        common_system_labels = ["node_name", "node_zone", "node_region", "state", "machine_type"]
+        result["resource_type"] = resource_type
+        result["resource_labels"] = [
+            {"key": f"resource.labels.{k}", "samples": list(resource_labels[k])[:3]}
+            for k in sorted(resource_labels)
+        ]
 
-        for sys_label in common_system_labels:
+        # Discover system metadata labels
+        system_labels: dict[str, set] = {}
+        for sys_label in ["node_name", "node_zone", "node_region", "state", "machine_type"]:
             try:
                 aggregation = monitoring_v3.Aggregation(
                     alignment_period={"seconds": 60},
@@ -498,32 +492,22 @@ def describe_metric(project_id: str, metric_type: str) -> None:
                 for series in sys_results:
                     if series.metadata and series.metadata.system_labels:
                         for key, value in series.metadata.system_labels.items():
-                            system_labels.add(key)
-                            if key not in system_sample_values:
-                                system_sample_values[key] = set()
-                            system_sample_values[key].add(value)
-                            if len(system_sample_values[key]) > 5:
-                                system_sample_values[key] = set(list(system_sample_values[key])[:5])
-                    break  # Only need one sample per label
+                            system_labels.setdefault(key, set()).add(value)
+                            if len(system_labels[key]) > 5:
+                                system_labels[key] = set(list(system_labels[key])[:5])
+                    break
             except Exception:
-                pass  # Label doesn't exist for this metric
+                pass
 
-        if resource_type:
-            print(f"  Resource Type: {resource_type}")
-        for label in sorted(resource_labels):
-            samples = list(sample_values.get(label, []))[:3]
-            sample_str = f" (e.g., {', '.join(repr(s) for s in samples)})" if samples else ""
-            print(f"  resource.labels.{label}{sample_str}")
+        result["system_labels"] = [
+            {"key": f"metadata.system_labels.{k}", "samples": list(system_labels[k])[:3]}
+            for k in sorted(system_labels)
+        ]
 
-        if system_labels:
-            print("\nSystem Metadata Labels:")
-            for label in sorted(system_labels):
-                samples = list(system_sample_values.get(label, []))[:3]
-                sample_str = f" (e.g., {', '.join(repr(s) for s in samples)})" if samples else ""
-                print(f"  metadata.system_labels.{label}{sample_str}")
+        print(json.dumps(result, separators=(',', ':'), default=str))
 
     except Exception as e:
-        print(f"Error describing metric: {e}")
+        print(f"Error describing metric: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -548,25 +532,21 @@ def list_metrics(project_id: str, filter_prefix: Optional[str] = None) -> None:
         6: "MONEY",
     }
 
-    print(f"Listing metrics for project: {project_id}")
-    if filter_prefix:
-        print(f"Filtering by prefix: {filter_prefix}")
-    print("-" * 60)
-
     try:
         metrics = client.list_metric_descriptors(name=project_name)
-        count = 0
         for descriptor in metrics:
             if filter_prefix and not descriptor.type.startswith(filter_prefix):
                 continue
-            count += 1
             kind = metric_kind_names.get(descriptor.metric_kind, str(descriptor.metric_kind))
             value = value_type_names.get(descriptor.value_type, str(descriptor.value_type))
-            print(f"{descriptor.type}  [{kind}/{value}]  {descriptor.display_name}")
-
-        print(f"Total: {count} metrics")
+            print(json.dumps({
+                "type": descriptor.type,
+                "kind": kind,
+                "value_type": value,
+                "display_name": descriptor.display_name,
+            }, separators=(',', ':')))
     except Exception as e:
-        print(f"Error listing metrics: {e}")
+        print(f"Error listing metrics: {e}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -665,8 +645,8 @@ Examples:
     # Output options
     out_group = query_parser.add_argument_group("output options")
     out_group.add_argument(
-        "-o", "--output", choices=["table", "json", "csv"], default="table",
-        help="Output format. Default: table",
+        "-o", "--output", choices=["table", "json", "csv"], default="json",
+        help="Output format. Default: json",
     )
     out_group.add_argument(
         "--top", type=int, dest="top_n",
